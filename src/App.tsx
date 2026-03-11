@@ -1,14 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Search, Plus, Building2, LogOut, Pencil } from "lucide-react";
+import { Building2, LogOut, Pencil, Plus, Search } from "lucide-react";
 
 const USERS = [
   { username: "shinyh7", password: "ss1004**", name: "신용호 과장", role: "admin", approved: true },
@@ -35,6 +26,7 @@ const CONTRACT_STATUSES = ["미계약", "전자계약 완료", "서면계약 완
 const INFLOW_SOURCES = ["메타광고", "블로그", "전화영업", "소개", "문자", "홈페이지", "지인추천", "기존고객", "기타"] as const;
 
 type User = (typeof USERS)[number];
+
 type Company = {
   id: string;
   company_name: string;
@@ -60,54 +52,6 @@ type Company = {
   history: string[];
   delete_requested: boolean;
 };
-
-function BrandMark({ size = 96 }: { size?: number }) {
-  return (
-    <div className="flex flex-col items-center gap-3">
-      <div
-        className="rounded-3xl bg-white shadow-sm border flex items-center justify-center"
-        style={{ width: size, height: size }}
-      >
-        <div className="text-center leading-none">
-          <div className="text-2xl font-black text-slate-800">MRC</div>
-          <div className="text-[10px] text-slate-500 mt-1">Mi Rae</div>
-        </div>
-      </div>
-      <div className="text-sm font-semibold text-slate-800">미래정책자금연구소</div>
-    </div>
-  );
-}
-
-function formatRevenue(v: string | number) {
-  const n = Number(v || 0);
-  if (!n) return "-";
-  if (n >= 100000000) return `${(n / 100000000).toFixed(1)}억`;
-  if (n >= 10000) return `${Math.round(n / 10000)}만`;
-  return n.toLocaleString();
-}
-
-function getActionState(date: string) {
-  if (!date) return "none" as const;
-  const today = new Date();
-  const target = new Date(`${date}T00:00:00`);
-  const base = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-  const diff = Math.floor((target.getTime() - base.getTime()) / (1000 * 60 * 60 * 24));
-  if (diff < 0) return "overdue" as const;
-  if (diff === 0) return "today" as const;
-  return "upcoming" as const;
-}
-
-function Dot({ state }: { state: ReturnType<typeof getActionState> }) {
-  const cls =
-    state === "overdue"
-      ? "bg-red-500"
-      : state === "today"
-        ? "bg-yellow-500"
-        : state === "upcoming"
-          ? "bg-green-500"
-          : "bg-slate-300";
-  return <span className={`inline-block h-2.5 w-2.5 rounded-full ${cls}`} />;
-}
 
 function emptyCompany(): Company {
   return {
@@ -137,10 +81,74 @@ function emptyCompany(): Company {
   };
 }
 
-export default function PolicyFundingCRM() {
+function formatRevenue(v: string | number) {
+  const n = Number(v || 0);
+  if (!n) return "-";
+  if (n >= 100000000) return `${(n / 100000000).toFixed(1)}억`;
+  if (n >= 10000) return `${Math.round(n / 10000)}만`;
+  return n.toLocaleString();
+}
+
+function getActionState(date: string) {
+  if (!date) return "none" as const;
+  const today = new Date();
+  const target = new Date(`${date}T00:00:00`);
+  const base = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  const diff = Math.floor((target.getTime() - base.getTime()) / (1000 * 60 * 60 * 24));
+  if (diff < 0) return "overdue" as const;
+  if (diff === 0) return "today" as const;
+  return "upcoming" as const;
+}
+
+function Dot({ state }: { state: ReturnType<typeof getActionState> }) {
+  return <span className={`dot ${state}`} />;
+}
+
+function BrandMark({ small = false }: { small?: boolean }) {
+  return (
+    <div className={`brand-wrap ${small ? "small" : ""}`}>
+      <div className="brand-box">
+        <div className="brand-main">MRC</div>
+        <div className="brand-sub">Mi Rae</div>
+      </div>
+      <div className="brand-text">미래정책자금연구소</div>
+    </div>
+  );
+}
+
+function Modal({
+  open,
+  children,
+  onClose,
+}: {
+  open: boolean;
+  children: React.ReactNode;
+  onClose: () => void;
+}) {
+  if (!open) return null;
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal-panel" onClick={(e) => e.stopPropagation()}>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <label className="field">
+      <span className="field-label">{label}</span>
+      {children}
+    </label>
+  );
+}
+
+export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [loginId, setLoginId] = useState("");
   const [loginPw, setLoginPw] = useState("");
+
   const [companies, setCompanies] = useState<Company[]>([]);
   const [selectedId, setSelectedId] = useState("");
   const [search, setSearch] = useState("");
@@ -152,7 +160,6 @@ export default function PolicyFundingCRM() {
   const [dashboardManager, setDashboardManager] = useState<string>("all");
 
   const myCompanies = useMemo(() => companies.filter((c) => c.manager === user?.name), [companies, user]);
-
   const sharedCompanies = useMemo(() => companies, [companies]);
 
   const filtered = useMemo(() => {
@@ -276,192 +283,208 @@ export default function PolicyFundingCRM() {
 
   if (!user) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
-        <Card className="w-full max-w-sm rounded-2xl text-center shadow-sm">
-          <CardHeader className="flex flex-col items-center gap-3 pt-8">
-            <BrandMark size={112} />
-            <CardTitle className="text-lg">미래정책자금 고객관리</CardTitle>
-            <div className="text-xs text-slate-500">MRC (Mi Rae Client)</div>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <Input placeholder="아이디" value={loginId} onChange={(e) => setLoginId(e.target.value)} />
-            <Input type="password" placeholder="비밀번호" value={loginPw} onChange={(e) => setLoginPw(e.target.value)} />
-            <Button className="w-full" onClick={login}>로그인</Button>
-          </CardContent>
-        </Card>
+      <div className="auth-page">
+        <div className="card auth-card">
+          <div className="card-body center">
+            <BrandMark />
+            <h1 className="auth-title">미래정책자금 고객관리</h1>
+            <div className="auth-sub">MRC (Mi Rae Client)</div>
+            <input className="input" placeholder="아이디" value={loginId} onChange={(e) => setLoginId(e.target.value)} />
+            <input className="input" type="password" placeholder="비밀번호" value={loginPw} onChange={(e) => setLoginPw(e.target.value)} />
+            <button className="btn primary full" onClick={login}>로그인</button>
+          </div>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 p-4 md:p-6 space-y-6">
-      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-        <div className="flex items-center gap-3">
-          <BrandMark size={56} />
+    <div className="page">
+      <header className="topbar">
+        <div className="topbar-left">
+          <BrandMark small />
           <div>
-            <h1 className="text-xl font-bold flex items-center gap-2">
-              <Building2 className="h-5 w-5" /> 미래정책자금 고객관리
-            </h1>
-            <div className="text-xs text-slate-500">MRC (Mi Rae Client)</div>
-            <div className="text-sm text-slate-500">로그인 사용자: {user.name}</div>
+            <div className="topbar-title">
+              <Building2 size={18} />
+              <span>미래정책자금 고객관리</span>
+            </div>
+            <div className="muted tiny">MRC (Mi Rae Client)</div>
+            <div className="muted">로그인 사용자: {user.name}</div>
           </div>
         </div>
-        <div className="flex gap-2">
-          <Button onClick={() => { setForm(emptyCompany()); setDialogOpen(true); }}>
-            <Plus className="mr-2 h-4 w-4" />업체 등록
-          </Button>
-          <Button variant="outline" onClick={logout}>
-            <LogOut className="mr-2 h-4 w-4" />로그아웃
-          </Button>
+        <div className="topbar-right">
+          <button
+            className="btn primary"
+            onClick={() => {
+              setForm(emptyCompany());
+              setDialogOpen(true);
+            }}
+          >
+            <Plus size={16} />
+            업체 등록
+          </button>
+          <button className="btn ghost" onClick={logout}>
+            <LogOut size={16} />
+            로그아웃
+          </button>
         </div>
-      </div>
+      </header>
 
-      <div className="flex flex-wrap items-center gap-2 justify-between">
-        <div className="flex flex-wrap gap-2">
-          <Button variant={page === "mine" ? "default" : "outline"} onClick={() => setPage("mine")}>공유 업체 현황</Button>
-          <Button variant={page === "dashboard" ? "default" : "outline"} onClick={() => setPage("dashboard")}>대시보드(전체현황)</Button>
+      <div className="toolbar">
+        <div className="toolbar-tabs">
+          <button className={`btn ${page === "mine" ? "primary" : "ghost"}`} onClick={() => setPage("mine")}>
+            공유 업체 현황
+          </button>
+          <button className={`btn ${page === "dashboard" ? "primary" : "ghost"}`} onClick={() => setPage("dashboard")}>
+            대시보드(전체현황)
+          </button>
         </div>
-        <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500">
-          <div className="flex items-center gap-1.5"><Dot state="overdue" /><span>기한 지남</span></div>
-          <div className="flex items-center gap-1.5"><Dot state="today" /><span>오늘</span></div>
-          <div className="flex items-center gap-1.5"><Dot state="upcoming" /><span>예정</span></div>
+        <div className="legend">
+          <span><Dot state="overdue" /> 기한 지남</span>
+          <span><Dot state="today" /> 오늘</span>
+          <span><Dot state="upcoming" /> 예정</span>
         </div>
       </div>
 
       {page === "dashboard" ? (
-        <div className="space-y-4">
-          <div className="grid grid-cols-1 xl:grid-cols-[1fr_300px] gap-4">
-            <Card>
-              <CardContent className="p-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <div className="stack">
+          <div className="grid two">
+            <div className="card">
+              <div className="card-body row-between wrap">
                 <div>
-                  <div className="text-sm text-slate-500">조회 범위</div>
-                  <div className="text-lg font-semibold">{dashboardManager === "all" ? "전체 현황" : `${dashboardManager} 담당 현황`}</div>
+                  <div className="muted tiny">조회 범위</div>
+                  <div className="section-title">
+                    {dashboardManager === "all" ? "전체 현황" : `${dashboardManager} 담당 현황`}
+                  </div>
                 </div>
-                <div className="w-full md:w-72">
-                  <Select value={dashboardManager} onValueChange={setDashboardManager}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">전체</SelectItem>
-                      {TEAM_MEMBERS.map((name) => (
-                        <SelectItem key={name} value={name}>{name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-4">
-                <div className="text-sm text-slate-500">총 업체 수</div>
-                <div className="text-3xl font-bold mt-1">{dashboardCompanies.length}</div>
-              </CardContent>
-            </Card>
+                <select className="input select" value={dashboardManager} onChange={(e) => setDashboardManager(e.target.value)}>
+                  <option value="all">전체</option>
+                  {TEAM_MEMBERS.map((name) => (
+                    <option key={name} value={name}>{name}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="card">
+              <div className="card-body">
+                <div className="muted tiny">총 업체 수</div>
+                <div className="big-number">{dashboardCompanies.length}</div>
+              </div>
+            </div>
           </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-3">
+          <div className="status-grid">
             {STATUSES.map((status) => (
-              <Card key={status}>
-                <CardContent className="p-4">
-                  <div className="text-sm text-slate-500">{status}</div>
-                  <div className="text-2xl font-bold mt-1">{dashboardStatusStats[status] || 0}</div>
-                </CardContent>
-              </Card>
+              <div className="card" key={status}>
+                <div className="card-body">
+                  <div className="muted tiny">{status}</div>
+                  <div className="big-number small">{dashboardStatusStats[status] || 0}</div>
+                </div>
+              </div>
             ))}
           </div>
 
-          <div className="grid grid-cols-1 xl:grid-cols-[1fr_320px] gap-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>다음 액션 예정</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ScrollArea className="h-[420px] pr-3">
-                  {dashboardActionItems.length ? dashboardActionItems.map((c) => (
-                    <div key={c.id} className="border rounded-xl p-3 mb-2">
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="font-semibold">{c.company_name}{c.ceo_name ? ` (${c.ceo_name})` : ""}</div>
-                        <div className="text-xs text-slate-600 flex items-center gap-2">
-                          <Dot state={getActionState(c.next_action_date)} />
-                          <span>{c.next_action_date}</span>
-                        </div>
+          <div className="grid main-side">
+            <div className="card">
+              <div className="card-header">다음 액션 예정</div>
+              <div className="card-body scroll">
+                {dashboardActionItems.length ? dashboardActionItems.map((c) => (
+                  <div key={c.id} className="list-card">
+                    <div className="row-between">
+                      <div className="strong">
+                        {c.company_name}{c.ceo_name ? ` (${c.ceo_name})` : ""}
                       </div>
-                      <div className="text-sm text-slate-500 mt-1">담당자: {c.manager || "-"}</div>
-                      <div className="text-sm mt-1">{(c.fund_types || []).join(" + ") || "자금 미입력"} · N {c.nice_score || "-"} / K {c.kcb_score || "-"}</div>
+                      <div className="muted tiny row">
+                        <Dot state={getActionState(c.next_action_date)} />
+                        <span>{c.next_action_date}</span>
+                      </div>
                     </div>
-                  )) : <div className="text-slate-400">다음 액션 일정이 있는 업체가 없음</div>}
-                </ScrollArea>
-              </CardContent>
-            </Card>
+                    <div className="muted">담당자: {c.manager || "-"}</div>
+                    <div>{(c.fund_types || []).join(" + ") || "자금 미입력"} · N {c.nice_score || "-"} / K {c.kcb_score || "-"}</div>
+                  </div>
+                )) : <div className="muted">다음 액션 일정이 있는 업체가 없음</div>}
+              </div>
+            </div>
 
-            <Card>
-              <CardContent className="p-3">
-                <div className="font-semibold mb-2">유입경로 통계</div>
-                <div className="space-y-1 text-sm">
+            <div className="card">
+              <div className="card-body">
+                <div className="section-title">유입경로 통계</div>
+                <div className="stack-sm">
                   {inflowStats.length ? inflowStats.map(([name, count]) => (
-                    <div key={name} className="flex justify-between"><span>{name}</span><span>{count}</span></div>
-                  )) : <div className="text-slate-400">데이터 없음</div>}
+                    <div key={name} className="row-between">
+                      <span>{name}</span>
+                      <span>{count}</span>
+                    </div>
+                  )) : <div className="muted">데이터 없음</div>}
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           </div>
         </div>
       ) : (
-        <>
-          <div className="grid grid-cols-1 xl:grid-cols-[1fr_300px] gap-4">
-            <Input placeholder="업체명 / 대표자 / 업종 / 유입경로 / 담당자 검색" value={search} onChange={(e) => setSearch(e.target.value)} />
-            <Card>
-              <CardContent className="p-3">
-                <div className="font-semibold mb-2">전체 공유 업체 수</div>
-                <div className="text-3xl font-bold">{sharedCompanies.length}</div>
-                <div className="text-xs text-slate-500 mt-1">내 담당 업체 수: {myCompanies.length}</div>
-              </CardContent>
-            </Card>
+        <div className="stack">
+          <div className="grid two">
+            <div className="search-wrap">
+              <Search size={16} />
+              <input
+                className="input search-input"
+                placeholder="업체명 / 대표자 / 업종 / 유입경로 / 담당자 검색"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </div>
+
+            <div className="card">
+              <div className="card-body">
+                <div className="section-title">전체 공유 업체 수</div>
+                <div className="big-number">{sharedCompanies.length}</div>
+                <div className="muted tiny">내 담당 업체 수: {myCompanies.length}</div>
+              </div>
+            </div>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>공유 업체 리스트 ({filtered.length})</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ScrollArea className="h-[520px] pr-3">
-                  {filtered.map((c) => (
-                    <div
-                      key={c.id}
-                      onClick={() => setSelectedId(c.id)}
-                      className={`border rounded-xl p-3 mb-2 cursor-pointer transition ${selectedId === c.id ? "border-slate-900 bg-slate-50" : "hover:bg-white"}`}
-                    >
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="font-semibold">{c.company_name}{c.ceo_name ? ` (${c.ceo_name})` : ""}</div>
-                        <Badge>{c.status}</Badge>
+          <div className="grid main-side">
+            <div className="card">
+              <div className="card-header">공유 업체 리스트 ({filtered.length})</div>
+              <div className="card-body scroll">
+                {filtered.map((c) => (
+                  <div
+                    key={c.id}
+                    className={`list-card clickable ${selectedId === c.id ? "active" : ""}`}
+                    onClick={() => setSelectedId(c.id)}
+                  >
+                    <div className="row-between">
+                      <div className="strong">
+                        {c.company_name}{c.ceo_name ? ` (${c.ceo_name})` : ""}
                       </div>
-                      <div className="text-sm text-slate-500 mt-1">{c.industry || "업종 미입력"} · 유입: {c.inflow_source || "-"}</div>
-                      <div className="text-sm mt-1">{(c.fund_types || []).join(" + ") || "자금 미입력"} · N {c.nice_score || "-"} / K {c.kcb_score || "-"}</div>
-                      <div className="text-sm mt-1">담당자: {c.manager || "-"}</div>
-                      <div className="text-xs mt-2 flex items-center gap-2 text-slate-600">
-                        <Dot state={getActionState(c.next_action_date)} />
-                        <span>다음 액션: {c.next_action_date || "미정"}{c.next_action_text ? ` · ${c.next_action_text}` : ""}</span>
-                      </div>
+                      <span className="status-badge">{c.status}</span>
                     </div>
-                  ))}
-                </ScrollArea>
-              </CardContent>
-            </Card>
+                    <div className="muted">{c.industry || "업종 미입력"} · 유입: {c.inflow_source || "-"}</div>
+                    <div>{(c.fund_types || []).join(" + ") || "자금 미입력"} · N {c.nice_score || "-"} / K {c.kcb_score || "-"}</div>
+                    <div className="muted">담당자: {c.manager || "-"}</div>
+                    <div className="muted tiny row">
+                      <Dot state={getActionState(c.next_action_date)} />
+                      <span>다음 액션: {c.next_action_date || "미정"}{c.next_action_text ? ` · ${c.next_action_text}` : ""}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
 
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between gap-3">
-                  <CardTitle>업체 상세</CardTitle>
-                  {selected ? (
-                    <Button variant="outline" size="sm" onClick={() => startEdit(selected)}>
-                      <Pencil className="mr-2 h-4 w-4" />수정
-                    </Button>
-                  ) : null}
-                </div>
-              </CardHeader>
-              <CardContent>
+            <div className="card">
+              <div className="card-header row-between">
+                <span>업체 상세</span>
                 {selected ? (
-                  <div className="space-y-3 text-sm">
+                  <button className="btn ghost sm" onClick={() => startEdit(selected)}>
+                    <Pencil size={14} />
+                    수정
+                  </button>
+                ) : null}
+              </div>
+              <div className="card-body scroll">
+                {selected ? (
+                  <div className="stack-sm">
                     <div><b>업체명</b> {selected.company_name}</div>
                     <div><b>사업자번호</b> {selected.business_number || "-"} ({selected.business_type})</div>
                     <div><b>고객 전화번호</b> {selected.phone || "-"}</div>
@@ -476,138 +499,133 @@ export default function PolicyFundingCRM() {
                     <div><b>유입경로</b> {selected.inflow_source || "-"}</div>
                     <div><b>계약상태</b> {selected.contract_status}</div>
                     <div><b>계약조건</b> {selected.contract_terms || "-"}</div>
-                    <div className="flex items-center gap-2"><b>다음 액션</b> <Dot state={getActionState(selected.next_action_date)} /><span>{selected.next_action_date || "미정"}</span></div>
+                    <div className="row">
+                      <b>다음 액션</b>
+                      <Dot state={getActionState(selected.next_action_date)} />
+                      <span>{selected.next_action_date || "미정"}</span>
+                    </div>
                     <div><b>다음 액션 내용</b> {selected.next_action_text || "-"}</div>
                     <div><b>특이사항</b> {selected.remarks || "-"}</div>
 
-                    <div className="pt-2 space-y-2">
-                      <div className="font-semibold">진행 내역</div>
-                      <Textarea placeholder="예: 3/12 김수환 소장 상담 진행, 3/18 접수 완료" value={historyText} onChange={(e) => setHistoryText(e.target.value)} />
-                      <Button onClick={addHistory}>기록 추가</Button>
-                      <div className="space-y-1">
+                    <div className="stack-sm">
+                      <div className="section-title">진행 내역</div>
+                      <textarea
+                        className="textarea"
+                        placeholder="예: 3/12 김수환 소장 상담 진행, 3/18 접수 완료"
+                        value={historyText}
+                        onChange={(e) => setHistoryText(e.target.value)}
+                      />
+                      <button className="btn primary" onClick={addHistory}>기록 추가</button>
+                      <div className="stack-sm">
                         {selected.history.length ? selected.history.map((h, i) => (
-                          <div key={i} className="text-xs border rounded p-2 bg-slate-50">{h}</div>
-                        )) : <div className="text-slate-400 text-xs">히스토리 없음</div>}
+                          <div key={i} className="history-item">{h}</div>
+                        )) : <div className="muted tiny">히스토리 없음</div>}
                       </div>
                     </div>
 
-                    <div className="pt-3 flex flex-wrap gap-2">
+                    <div className="row">
                       {!selected.delete_requested ? (
-                        <Button variant="destructive" onClick={() => requestDelete(selected.id)}>삭제 요청</Button>
+                        <button className="btn danger" onClick={() => requestDelete(selected.id)}>삭제 요청</button>
                       ) : (
                         <>
-                          <Badge>삭제 요청됨</Badge>
-                          <Button onClick={() => approveDelete(selected.id)}>관리자 승인 삭제</Button>
+                          <span className="status-badge">삭제 요청됨</span>
+                          <button className="btn primary" onClick={() => approveDelete(selected.id)}>관리자 승인 삭제</button>
                         </>
                       )}
                     </div>
                   </div>
                 ) : (
-                  <div className="text-slate-400">업체 선택</div>
+                  <div className="muted">업체 선택</div>
                 )}
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           </div>
-        </>
+        </div>
       )}
 
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-3xl">
-          <DialogHeader>
-            <DialogTitle>{form.id ? "업체 수정" : "업체 등록"}</DialogTitle>
-          </DialogHeader>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <Field label="업체명"><Input value={form.company_name} onChange={(e) => setForm({ ...form, company_name: e.target.value })} /></Field>
-            <Field label="대표자"><Input value={form.ceo_name} onChange={(e) => setForm({ ...form, ceo_name: e.target.value })} /></Field>
-            <Field label="업종"><Input value={form.industry} onChange={(e) => setForm({ ...form, industry: e.target.value })} /></Field>
-            <Field label="사업자 유형">
-              <Select value={form.business_type} onValueChange={(v) => setForm({ ...form, business_type: v as "개인" | "법인" })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="개인">개인</SelectItem>
-                  <SelectItem value="법인">법인</SelectItem>
-                </SelectContent>
-              </Select>
-            </Field>
-            <Field label="사업자번호"><Input value={form.business_number} onChange={(e) => setForm({ ...form, business_number: e.target.value })} /></Field>
-            <Field label="고객 전화번호"><Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></Field>
-            <Field label="사업장 주소"><Input value={form.business_address} onChange={(e) => setForm({ ...form, business_address: e.target.value })} /></Field>
-            <Field label="개업일"><Input type="date" value={form.open_date} onChange={(e) => setForm({ ...form, open_date: e.target.value })} /></Field>
-            <Field label="연매출"><Input value={form.revenue} onChange={(e) => setForm({ ...form, revenue: e.target.value })} /></Field>
-            <Field label="NICE"><Input value={form.nice_score} onChange={(e) => setForm({ ...form, nice_score: e.target.value })} /></Field>
-            <Field label="KCB"><Input value={form.kcb_score} onChange={(e) => setForm({ ...form, kcb_score: e.target.value })} /></Field>
-            <Field label="유입경로">
-              <Select value={form.inflow_source} onValueChange={(v) => setForm({ ...form, inflow_source: v })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {INFLOW_SOURCES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </Field>
-            <Field label="진행상태">
-              <Select value={form.status} onValueChange={(v) => setForm({ ...form, status: v as Company["status"] })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {STATUSES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </Field>
-            <Field label="담당자">
-              <Select value={form.manager} onValueChange={(v) => setForm({ ...form, manager: v })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {TEAM_MEMBERS.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </Field>
-            <Field label="다음 액션일"><Input type="date" value={form.next_action_date} onChange={(e) => setForm({ ...form, next_action_date: e.target.value })} /></Field>
-            <Field label="다음 액션 내용"><Input value={form.next_action_text} onChange={(e) => setForm({ ...form, next_action_text: e.target.value })} /></Field>
-            <Field label="계약여부">
-              <Select value={form.contract_status} onValueChange={(v) => setForm({ ...form, contract_status: v as Company["contract_status"] })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {CONTRACT_STATUSES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </Field>
-            <Field label="진행 자금">
-              <div className="space-y-2">
-                <div className="flex gap-2">
-                  <Input value={fundInput} onChange={(e) => setFundInput(e.target.value)} placeholder="예: 혁신성장-스마트" />
-                  <Button type="button" onClick={addFundType}>추가</Button>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {(form.fund_types || []).length ? form.fund_types.map((fund) => (
-                    <Badge key={fund} variant="secondary" className="cursor-pointer" onClick={() => removeFundType(fund)}>
-                      {fund} ×
-                    </Badge>
-                  )) : <span className="text-xs text-slate-400">추가된 진행 자금 없음</span>}
-                </div>
-                <div className="text-xs text-slate-500">여러 자금이 있으면 추가 버튼으로 각각 넣어주세요. 표시될 때는 + 로 연결됩니다.</div>
-              </div>
-            </Field>
-          </div>
-          <Field label="계약조건">
-            <Input value={form.contract_terms} onChange={(e) => setForm({ ...form, contract_terms: e.target.value })} placeholder="예: 계약금 100만원(선불) / 5%" />
-          </Field>
-          <Field label="특이사항 / 기대출 메모">
-            <Textarea value={form.remarks} onChange={(e) => setForm({ ...form, remarks: e.target.value })} />
-          </Field>
-          <div className="flex gap-2">
-            <Button className="flex-1" onClick={saveCompany}>{form.id ? "수정 저장" : "저장"}</Button>
-            <Button variant="outline" onClick={() => { setDialogOpen(false); setForm(emptyCompany()); setFundInput(""); }}>취소</Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-    </div>
-  );
-}
+      <Modal open={dialogOpen} onClose={() => { setDialogOpen(false); setForm(emptyCompany()); setFundInput(""); }}>
+        <div className="modal-header">{form.id ? "업체 수정" : "업체 등록"}</div>
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="space-y-1">
-      <Label>{label}</Label>
-      {children}
+        <div className="form-grid">
+          <Field label="업체명"><input className="input" value={form.company_name} onChange={(e) => setForm({ ...form, company_name: e.target.value })} /></Field>
+          <Field label="대표자"><input className="input" value={form.ceo_name} onChange={(e) => setForm({ ...form, ceo_name: e.target.value })} /></Field>
+          <Field label="업종"><input className="input" value={form.industry} onChange={(e) => setForm({ ...form, industry: e.target.value })} /></Field>
+
+          <Field label="사업자 유형">
+            <select className="input select" value={form.business_type} onChange={(e) => setForm({ ...form, business_type: e.target.value as "개인" | "법인" })}>
+              <option value="개인">개인</option>
+              <option value="법인">법인</option>
+            </select>
+          </Field>
+
+          <Field label="사업자번호"><input className="input" value={form.business_number} onChange={(e) => setForm({ ...form, business_number: e.target.value })} /></Field>
+          <Field label="고객 전화번호"><input className="input" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></Field>
+          <Field label="사업장 주소"><input className="input" value={form.business_address} onChange={(e) => setForm({ ...form, business_address: e.target.value })} /></Field>
+          <Field label="개업일"><input className="input" type="date" value={form.open_date} onChange={(e) => setForm({ ...form, open_date: e.target.value })} /></Field>
+          <Field label="연매출"><input className="input" value={form.revenue} onChange={(e) => setForm({ ...form, revenue: e.target.value })} /></Field>
+          <Field label="NICE"><input className="input" value={form.nice_score} onChange={(e) => setForm({ ...form, nice_score: e.target.value })} /></Field>
+          <Field label="KCB"><input className="input" value={form.kcb_score} onChange={(e) => setForm({ ...form, kcb_score: e.target.value })} /></Field>
+
+          <Field label="유입경로">
+            <select className="input select" value={form.inflow_source} onChange={(e) => setForm({ ...form, inflow_source: e.target.value })}>
+              <option value="">선택</option>
+              {INFLOW_SOURCES.map((s) => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </Field>
+
+          <Field label="진행상태">
+            <select className="input select" value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value as Company["status"] })}>
+              {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </Field>
+
+          <Field label="담당자">
+            <select className="input select" value={form.manager} onChange={(e) => setForm({ ...form, manager: e.target.value })}>
+              <option value="">선택</option>
+              {TEAM_MEMBERS.map((s) => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </Field>
+
+          <Field label="다음 액션일"><input className="input" type="date" value={form.next_action_date} onChange={(e) => setForm({ ...form, next_action_date: e.target.value })} /></Field>
+          <Field label="다음 액션 내용"><input className="input" value={form.next_action_text} onChange={(e) => setForm({ ...form, next_action_text: e.target.value })} /></Field>
+
+          <Field label="계약여부">
+            <select className="input select" value={form.contract_status} onChange={(e) => setForm({ ...form, contract_status: e.target.value as Company["contract_status"] })}>
+              {CONTRACT_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </Field>
+
+          <Field label="진행 자금">
+            <div className="stack-sm">
+              <div className="row">
+                <input className="input" value={fundInput} onChange={(e) => setFundInput(e.target.value)} placeholder="예: 혁신성장-스마트" />
+                <button type="button" className="btn primary" onClick={addFundType}>추가</button>
+              </div>
+              <div className="tag-wrap">
+                {form.fund_types.length ? form.fund_types.map((fund) => (
+                  <button key={fund} type="button" className="tag" onClick={() => removeFundType(fund)}>
+                    {fund} ×
+                  </button>
+                )) : <span className="muted tiny">추가된 진행 자금 없음</span>}
+              </div>
+              <div className="muted tiny">여러 자금이 있으면 추가 버튼으로 각각 넣어주세요. 표시될 때는 + 로 연결됩니다.</div>
+            </div>
+          </Field>
+        </div>
+
+        <Field label="계약조건">
+          <input className="input" value={form.contract_terms} onChange={(e) => setForm({ ...form, contract_terms: e.target.value })} placeholder="예: 계약금 100만원(선불) / 5%" />
+        </Field>
+
+        <Field label="특이사항 / 기대출 메모">
+          <textarea className="textarea" value={form.remarks} onChange={(e) => setForm({ ...form, remarks: e.target.value })} />
+        </Field>
+
+        <div className="row end">
+          <button className="btn primary" onClick={saveCompany}>{form.id ? "수정 저장" : "저장"}</button>
+          <button className="btn ghost" onClick={() => { setDialogOpen(false); setForm(emptyCompany()); setFundInput(""); }}>취소</button>
+        </div>
+      </Modal>
     </div>
   );
 }
