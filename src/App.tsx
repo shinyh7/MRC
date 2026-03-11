@@ -1,15 +1,10 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
+import { createClient } from "@supabase/supabase-js";
 import { Building2, LogOut, Pencil, Plus, Search } from "lucide-react";
 
-const USERS = [
-  { username: "shinyh7", password: "ss1004**", name: "신용호 과장", role: "admin", approved: true },
-  { username: "ksh", password: "1234", name: "김수환 소장", role: "staff", approved: true },
-  { username: "kma", password: "1234", name: "김미애 실장", role: "staff", approved: true },
-  { username: "cjy", password: "1234", name: "천진영 이사", role: "staff", approved: true },
-  { username: "ljm", password: "1234", name: "이정민 팀장", role: "staff", approved: true },
-  { username: "kha", password: "1234", name: "강현아 팀장", role: "staff", approved: true },
-  { username: "rey", password: "1234", name: "류은영 팀장", role: "staff", approved: true },
-] as const;
+const supabaseUrl = import.meta.env.NEXT_PUBLIC_SUPABASE_URL || import.meta.env.VITE_SUPABASE_URL;
+const supabaseKey = import.meta.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || import.meta.env.VITE_SUPABASE_ANON_KEY;
+const supabase = createClient(supabaseUrl, supabaseKey);
 
 const TEAM_MEMBERS = [
   "신용호 과장",
@@ -25,7 +20,14 @@ const STATUSES = ["상담", "서류준비", "접수완료", "심사진행", "승
 const CONTRACT_STATUSES = ["미계약", "전자계약 완료", "서면계약 완료", "보류"] as const;
 const INFLOW_SOURCES = ["메타광고", "블로그", "전화영업", "소개", "문자", "홈페이지", "지인추천", "기존고객", "기타"] as const;
 
-type User = (typeof USERS)[number];
+type Profile = {
+  id: string;
+  username: string;
+  password: string;
+  name: string;
+  role: "admin" | "staff";
+  approved: boolean;
+};
 
 type Company = {
   id: string;
@@ -145,10 +147,9 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 }
 
 export default function App() {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<Profile | null>(null);
   const [loginId, setLoginId] = useState("");
   const [loginPw, setLoginPw] = useState("");
-
   const [companies, setCompanies] = useState<Company[]>([]);
   const [selectedId, setSelectedId] = useState("");
   const [search, setSearch] = useState("");
@@ -158,6 +159,34 @@ export default function App() {
   const [fundInput, setFundInput] = useState("");
   const [page, setPage] = useState<"mine" | "dashboard">("mine");
   const [dashboardManager, setDashboardManager] = useState<string>("all");
+  const [loading, setLoading] = useState(true);
+
+  async function loadCompanies() {
+    const { data, error } = await supabase
+      .from("companies")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      alert("업체 데이터 불러오기 실패");
+      return;
+    }
+
+    const rows = (data || []).map((row: any) => ({
+      ...emptyCompany(),
+      ...row,
+      open_date: row.open_date || "",
+      next_action_date: row.next_action_date || "",
+      fund_types: row.fund_types || [],
+      history: row.history || [],
+    })) as Company[];
+
+    setCompanies(rows);
+  }
+
+  useEffect(() => {
+    setLoading(false);
+  }, []);
 
   const myCompanies = useMemo(() => companies.filter((c) => c.manager === user?.name), [companies, user]);
   const sharedCompanies = useMemo(() => companies, [companies]);
@@ -202,17 +231,26 @@ export default function App() {
       .sort((a, b) => a.next_action_date.localeCompare(b.next_action_date));
   }, [dashboardCompanies]);
 
-  function login() {
-    const found = USERS.find((u) => u.username === loginId && u.password === loginPw);
-    if (!found) {
+  async function login() {
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("username", loginId)
+      .eq("password", loginPw)
+      .single();
+
+    if (error || !data) {
       alert("아이디 또는 비밀번호 오류");
       return;
     }
-    if (!found.approved) {
+
+    if (!data.approved) {
       alert("관리자 승인 대기 계정");
       return;
     }
-    setUser(found);
+
+    setUser(data as Profile);
+    await loadCompanies();
   }
 
   function logout() {
@@ -221,6 +259,7 @@ export default function App() {
     setLoginPw("");
     setSelectedId("");
     setPage("mine");
+    setCompanies([]);
   }
 
   function addFundType() {
@@ -238,21 +277,52 @@ export default function App() {
     setForm((prev) => ({ ...prev, fund_types: prev.fund_types.filter((v) => v !== target) }));
   }
 
-  function saveCompany() {
+  async function saveCompany() {
     if (!form.company_name.trim()) return;
 
+    const payload = {
+      company_name: form.company_name,
+      business_type: form.business_type,
+      ceo_name: form.ceo_name,
+      business_number: form.business_number,
+      phone: form.phone,
+      business_address: form.business_address,
+      open_date: form.open_date || null,
+      industry: form.industry,
+      revenue: form.revenue,
+      nice_score: form.nice_score,
+      kcb_score: form.kcb_score,
+      inflow_source: form.inflow_source,
+      fund_types: form.fund_types,
+      status: form.status,
+      contract_status: form.contract_status,
+      contract_terms: form.contract_terms,
+      manager: form.manager,
+      next_action_date: form.next_action_date || null,
+      next_action_text: form.next_action_text,
+      remarks: form.remarks,
+      history: form.history,
+      delete_requested: form.delete_requested,
+    };
+
     if (form.id) {
-      setCompanies((prev) => prev.map((c) => (c.id === form.id ? form : c)));
-      setSelectedId(form.id);
+      const { error } = await supabase.from("companies").update(payload).eq("id", form.id);
+      if (error) {
+        alert("업체 수정 실패");
+        return;
+      }
     } else {
-      const newCompany = { ...form, id: crypto.randomUUID() };
-      setCompanies((prev) => [newCompany, ...prev]);
-      setSelectedId(newCompany.id);
+      const { error } = await supabase.from("companies").insert(payload);
+      if (error) {
+        alert("업체 등록 실패");
+        return;
+      }
     }
 
     setForm(emptyCompany());
     setFundInput("");
     setDialogOpen(false);
+    await loadCompanies();
   }
 
   function startEdit(company: Company) {
@@ -261,24 +331,59 @@ export default function App() {
     setDialogOpen(true);
   }
 
-  function addHistory() {
+  async function addHistory() {
     if (!selected || !historyText.trim()) return;
-    const entry = `${new Date().toLocaleDateString("ko-KR")} ${user?.name}: ${historyText.trim()}`;
-    setCompanies((prev) => prev.map((c) => (c.id === selected.id ? { ...c, history: [entry, ...c.history] } : c)));
+    const nextHistory = [
+      `${new Date().toLocaleDateString("ko-KR")} ${user?.name}: ${historyText.trim()}`,
+      ...(selected.history || []),
+    ];
+
+    const { error } = await supabase
+      .from("companies")
+      .update({ history: nextHistory })
+      .eq("id", selected.id);
+
+    if (error) {
+      alert("진행 내역 저장 실패");
+      return;
+    }
+
     setHistoryText("");
+    await loadCompanies();
   }
 
-  function requestDelete(id: string) {
-    setCompanies((prev) => prev.map((c) => (c.id === id ? { ...c, delete_requested: true } : c)));
+  async function requestDelete(id: string) {
+    const { error } = await supabase
+      .from("companies")
+      .update({ delete_requested: true })
+      .eq("id", id);
+
+    if (error) {
+      alert("삭제 요청 실패");
+      return;
+    }
+
+    await loadCompanies();
   }
 
-  function approveDelete(id: string) {
+  async function approveDelete(id: string) {
     if (user?.role !== "admin") {
       alert("관리자만 삭제 승인 가능");
       return;
     }
-    setCompanies((prev) => prev.filter((c) => c.id !== id));
+
+    const { error } = await supabase.from("companies").delete().eq("id", id);
+    if (error) {
+      alert("삭제 실패");
+      return;
+    }
+
     if (selectedId === id) setSelectedId("");
+    await loadCompanies();
+  }
+
+  if (loading) {
+    return <div className="auth-page"><div className="muted">로딩중...</div></div>;
   }
 
   if (!user) {
