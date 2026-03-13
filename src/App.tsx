@@ -142,6 +142,14 @@ function formatRevenue(v: string | number) {
   return n.toLocaleString();
 }
 
+function formatHistoryDate(value: string) {
+  const date = new Date(value);
+  const yy = String(date.getFullYear()).slice(-2);
+  const mm = String(date.getMonth() + 1).padStart(2, "0");
+  const dd = String(date.getDate()).padStart(2, "0");
+  return `${yy}.${mm}.${dd}`;
+}
+
 function getActionState(date: string) {
   if (!date) return "none" as const;
   const today = new Date();
@@ -481,7 +489,6 @@ export default function App() {
   async function saveCompany() {
     if (!form.company_name.trim()) return;
 
-    const isEdit = Boolean(form.id);
     const beforeCompany = companies.find((c) => c.id === form.id) || null;
     const previousManager = beforeCompany?.manager || "";
 
@@ -1082,16 +1089,16 @@ export default function App() {
                         {companyHistories.length ? companyHistories.map((item) => (
                           <div key={item.id} className="timeline-item">
                             <div className="timeline-dot"></div>
-                            <div className="timeline-content timeline-content-row">
-                              <div className="timeline-text-block">
-                                {new Date(item.created_at).toLocaleDateString("ko-KR")} {item.author_name}: {item.content}
-                              </div>
+                            <div className="timeline-content-inline">
+                              <span className="timeline-main-inline">
+                                {formatHistoryDate(item.created_at)} {item.content} ({item.author_name.replace(/\s/g, "")})
+                              </span>
                               <button
                                 type="button"
-                                className="timeline-delete-btn"
+                                className="timeline-delete-inline"
                                 onClick={() => deleteHistory(item.id)}
                               >
-                                삭제
+                                (삭제)
                               </button>
                             </div>
                           </div>
