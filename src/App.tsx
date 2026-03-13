@@ -652,11 +652,11 @@ export default function App() {
                       <button className="btn primary" onClick={addHistory}>기록 추가</button>
                       <div className="stack-sm">
                         {selected.history.length ? selected.history.map((h, i) => (
-  <div key={i} className="timeline-item">
-    <div className="timeline-dot"></div>
-    <div className="timeline-content">{h}</div>
-  </div>
-)) : <div className="muted tiny">히스토리 없음</div>}
+                          <div key={i} className="timeline-item">
+                            <div className="timeline-dot"></div> 
+                            <div className="timeline-content">{h}</div>
+                          </div>
+                        )) : <div className="muted tiny">히스토리 없음</div>}
                       </div>
                     </div>
 
