@@ -23,6 +23,8 @@ const TEAM_MEMBERS = [
 const STATUSES = ["상담", "서류준비", "접수완료", "심사진행", "승인", "부결", "종결"] as const;
 const CONTRACT_STATUSES = ["미계약", "전자계약 완료", "서면계약 완료", "보류"] as const;
 const INFLOW_SOURCES = ["메타광고", "블로그", "전화영업", "소개", "문자", "홈페이지", "지인추천", "기존고객", "기타"] as const;
+const STORAGE_USER_KEY = "mrc_logged_in_user";
+
 const STATUS_CLASS_MAP: Record<(typeof STATUSES)[number], string> = {
   상담: "status-consult",
   서류준비: "status-docs",
@@ -32,7 +34,16 @@ const STATUS_CLASS_MAP: Record<(typeof STATUSES)[number], string> = {
   부결: "status-rejected",
   종결: "status-closed",
 };
-const STORAGE_USER_KEY = "mrc_logged_in_user";
+
+const STATUS_ORDER: Record<(typeof STATUSES)[number], number> = {
+  상담: 1,
+  서류준비: 2,
+  접수완료: 3,
+  심사진행: 4,
+  승인: 5,
+  부결: 6,
+  종결: 7,
+};
 
 type Profile = {
   id: string;
@@ -136,6 +147,36 @@ function getActionState(date: string) {
   return "upcoming" as const;
 }
 
+function getSortWeight(company: Company) {
+  const actionState = getActionState(company.next_action_date);
+  const actionWeight =
+    actionState === "overdue"
+      ? 0
+      : actionState === "today"
+        ? 1
+        : actionState === "upcoming"
+          ? 2
+          : 3;
+
+  return {
+    actionWeight,
+    statusWeight: STATUS_ORDER[company.status] ?? 99,
+    actionDate: company.next_action_date || "9999-12-31",
+  };
+}
+
+function sortCompanies(list: Company[]) {
+  return [...list].sort((a, b) => {
+    const aa = getSortWeight(a);
+    const bb = getSortWeight(b);
+
+    if (aa.actionWeight !== bb.actionWeight) return aa.actionWeight - bb.actionWeight;
+    if (aa.actionDate !== bb.actionDate) return aa.actionDate.localeCompare(bb.actionDate);
+    if (aa.statusWeight !== bb.statusWeight) return aa.statusWeight - bb.statusWeight;
+    return a.company_name.localeCompare(b.company_name);
+  });
+}
+
 function Dot({ state }: { state: ReturnType<typeof getActionState> }) {
   return <span className={`dot ${state}`} />;
 }
@@ -180,6 +221,35 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
+function SummaryCards({ companies }: { companies: Company[] }) {
+  const overdueCount = companies.filter((c) => getActionState(c.next_action_date) === "overdue").length;
+  const todayCount = companies.filter((c) => getActionState(c.next_action_date) === "today").length;
+  const upcomingCount = companies.filter((c) => getActionState(c.next_action_date) === "upcoming").length;
+
+  return (
+    <div className="grid three">
+      <div className="card">
+        <div className="card-body">
+          <div className="muted tiny">기한 지남</div>
+          <div className="big-number small">{overdueCount}</div>
+        </div>
+      </div>
+      <div className="card">
+        <div className="card-body">
+          <div className="muted tiny">오늘 액션</div>
+          <div className="big-number small">{todayCount}</div>
+        </div>
+      </div>
+      <div className="card">
+        <div className="card-body">
+          <div className="muted tiny">예정 액션</div>
+          <div className="big-number small">{upcomingCount}</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   const [user, setUser] = useState<Profile | null>(null);
   const [loginId, setLoginId] = useState("");
@@ -195,7 +265,7 @@ export default function App() {
   const [historyText, setHistoryText] = useState("");
   const [fundInput, setFundInput] = useState("");
   const [accountSearch, setAccountSearch] = useState("");
-  const [page, setPage] = useState<"mine" | "dashboard" | "accounts">("mine");
+  const [page, setPage] = useState<"mine" | "all" | "dashboard" | "accounts">("mine");
   const [dashboardManager, setDashboardManager] = useState<string>("all");
   const [loading, setLoading] = useState(true);
 
@@ -223,8 +293,6 @@ export default function App() {
   }
 
   async function loadProfiles() {
-    if (!user || user.role !== "admin") return;
-
     const { data, error } = await supabase
       .from("profiles")
       .select("*")
@@ -262,15 +330,23 @@ export default function App() {
     }
   }, [user]);
 
-  const myCompanies = useMemo(() => companies.filter((c) => c.manager === user?.name), [companies, user]);
-  const sharedCompanies = useMemo(() => companies, [companies]);
+  const myCompanies = useMemo(() => {
+    const mine = companies.filter((c) => c.manager === user?.name);
+    return sortCompanies(mine);
+  }, [companies, user]);
 
-  const filtered = useMemo(() => {
-    return sharedCompanies.filter((c) => {
+  const allCompanies = useMemo(() => sortCompanies(companies), [companies]);
+
+  const targetCompanies = useMemo(() => {
+    return page === "mine" ? myCompanies : allCompanies;
+  }, [page, myCompanies, allCompanies]);
+
+  const filteredCompanies = useMemo(() => {
+    return targetCompanies.filter((c) => {
       const text = `${c.company_name} ${c.ceo_name} ${c.industry} ${c.inflow_source} ${c.manager}`.toLowerCase();
       return text.includes(search.toLowerCase());
     });
-  }, [sharedCompanies, search]);
+  }, [targetCompanies, search]);
 
   const selected = companies.find((c) => c.id === selectedId) || null;
 
@@ -300,10 +376,22 @@ export default function App() {
   }, [dashboardCompanies]);
 
   const dashboardActionItems = useMemo(() => {
-    return [...dashboardCompanies]
-      .filter((c) => c.next_action_date)
-      .sort((a, b) => a.next_action_date.localeCompare(b.next_action_date));
+    return sortCompanies(dashboardCompanies).filter((c) => c.next_action_date);
   }, [dashboardCompanies]);
+
+  const managerStats = useMemo(() => {
+    return TEAM_MEMBERS.map((name) => {
+      const owned = companies.filter((c) => c.manager === name);
+      return {
+        name,
+        total: owned.length,
+        overdue: owned.filter((c) => getActionState(c.next_action_date) === "overdue").length,
+        today: owned.filter((c) => getActionState(c.next_action_date) === "today").length,
+        approved: owned.filter((c) => c.status === "승인").length,
+        rejected: owned.filter((c) => c.status === "부결").length,
+      };
+    }).sort((a, b) => b.total - a.total);
+  }, [companies]);
 
   const filteredProfiles = useMemo(() => {
     return profiles.filter((p) => {
@@ -417,6 +505,7 @@ export default function App() {
 
   async function addHistory() {
     if (!selected || !historyText.trim()) return;
+
     const nextHistory = [
       `${new Date().toLocaleDateString("ko-KR")} ${user?.name}: ${historyText.trim()}`,
       ...(selected.history || []),
@@ -539,7 +628,11 @@ export default function App() {
   }
 
   if (loading) {
-    return <div className="auth-page"><div className="muted">로딩중...</div></div>;
+    return (
+      <div className="auth-page">
+        <div className="muted">로딩중...</div>
+      </div>
+    );
   }
 
   if (!user) {
@@ -594,10 +687,13 @@ export default function App() {
       <div className="toolbar">
         <div className="toolbar-tabs">
           <button className={`btn ${page === "mine" ? "primary" : "ghost"}`} onClick={() => setPage("mine")}>
-            공유 업체 현황
+            내 업체 리스트
+          </button>
+          <button className={`btn ${page === "all" ? "primary" : "ghost"}`} onClick={() => setPage("all")}>
+            전체 업체 리스트
           </button>
           <button className={`btn ${page === "dashboard" ? "primary" : "ghost"}`} onClick={() => setPage("dashboard")}>
-            대시보드(전체현황)
+            대시보드
           </button>
           {user.role === "admin" && (
             <button className={`btn ${page === "accounts" ? "primary" : "ghost"}`} onClick={() => setPage("accounts")}>
@@ -639,6 +735,8 @@ export default function App() {
               </div>
             </div>
           </div>
+
+          <SummaryCards companies={dashboardCompanies} />
 
           <div className="status-grid">
             {STATUSES.map((status) => (
@@ -687,6 +785,30 @@ export default function App() {
               </div>
             </div>
           </div>
+
+          {user.role === "admin" ? (
+            <div className="card">
+              <div className="card-header">담당자별 업체 통계</div>
+              <div className="card-body scroll">
+                <div className="stack-sm">
+                  {managerStats.map((item) => (
+                    <div key={item.name} className="account-card">
+                      <div className="row-between">
+                        <div className="strong">{item.name}</div>
+                        <div className="muted tiny">총 {item.total}건</div>
+                      </div>
+                      <div className="row wrap">
+                        <span className="status-badge status-review">기한지남 {item.overdue}</span>
+                        <span className="status-badge status-submitted">오늘 {item.today}</span>
+                        <span className="status-badge status-approved">승인 {item.approved}</span>
+                        <span className="status-badge status-rejected">부결 {item.rejected}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          ) : null}
         </div>
       ) : page === "accounts" ? (
         <div className="stack">
@@ -753,6 +875,8 @@ export default function App() {
         </div>
       ) : (
         <div className="stack">
+          <SummaryCards companies={page === "mine" ? myCompanies : allCompanies} />
+
           <div className="grid two">
             <div className="search-wrap">
               <Search size={16} />
@@ -766,18 +890,20 @@ export default function App() {
 
             <div className="card">
               <div className="card-body">
-                <div className="section-title">전체 공유 업체 수</div>
-                <div className="big-number">{sharedCompanies.length}</div>
-                <div className="muted tiny">내 담당 업체 수: {myCompanies.length}</div>
+                <div className="section-title">{page === "mine" ? "내 업체 수" : "전체 업체 수"}</div>
+                <div className="big-number">{page === "mine" ? myCompanies.length : allCompanies.length}</div>
+                <div className="muted tiny">상태 + 다음 액션 기준 자동 정렬 적용</div>
               </div>
             </div>
           </div>
 
           <div className="grid main-side">
             <div className="card">
-              <div className="card-header">공유 업체 리스트 ({filtered.length})</div>
+              <div className="card-header">
+                {page === "mine" ? `내 업체 리스트 (${filteredCompanies.length})` : `전체 업체 리스트 (${filteredCompanies.length})`}
+              </div>
               <div className="card-body scroll">
-                {filtered.map((c) => (
+                {filteredCompanies.map((c) => (
                   <div
                     key={c.id}
                     className={`list-card clickable ${selectedId === c.id ? "active" : ""}`}
@@ -860,8 +986,10 @@ export default function App() {
                         <button className="btn danger" onClick={() => requestDelete(selected.id)}>삭제 요청</button>
                       ) : (
                         <>
-                          <span className="status-badge">삭제 요청됨</span>
-                          <button className="btn primary" onClick={() => approveDelete(selected.id)}>관리자 승인 삭제</button>
+                          <span className="status-badge status-rejected">삭제 요청됨</span>
+                          {user.role === "admin" ? (
+                            <button className="btn primary" onClick={() => approveDelete(selected.id)}>관리자 승인 삭제</button>
+                          ) : null}
                         </>
                       )}
                     </div>
