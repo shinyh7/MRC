@@ -170,7 +170,7 @@ export default function App() {
   const [form, setForm] = useState<Company>(emptyCompany());
   const [historyText, setHistoryText] = useState("");
   const [fundInput, setFundInput] = useState("");
-  const [page, setPage] = useState<"mine" | "dashboard">("mine");
+  const [page, setPage] = useState<"mine" | "dashboard" | "accounts">("mine");
   const [dashboardManager, setDashboardManager] = useState<string>("all");
   const [loading, setLoading] = useState(true);
 
