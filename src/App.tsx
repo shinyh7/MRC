@@ -160,6 +160,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 
 export default function App() {
   const [user, setUser] = useState<Profile | null>(null);
+  const STORAGE_USER_KEY = "mrc_logged_in_user";
   const [loginId, setLoginId] = useState("");
   const [loginPw, setLoginPw] = useState("");
   const [companies, setCompanies] = useState<Company[]>([]);
@@ -197,8 +198,22 @@ export default function App() {
   }
 
   useEffect(() => {
+  const savedUser = localStorage.getItem(STORAGE_USER_KEY);
+
+  if (!savedUser) {
     setLoading(false);
-  }, []);
+    return;
+  }
+
+  try {
+    const parsedUser = JSON.parse(savedUser);
+    setUser(parsedUser);
+    loadCompanies().finally(() => setLoading(false));
+  } catch {
+    localStorage.removeItem(STORAGE_USER_KEY);
+    setLoading(false);
+  }
+}, []);
 
   const myCompanies = useMemo(() => companies.filter((c) => c.manager === user?.name), [companies, user]);
   const sharedCompanies = useMemo(() => companies, [companies]);
