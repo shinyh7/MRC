@@ -76,8 +76,15 @@ type Company = {
   next_action_date: string;
   next_action_text: string;
   remarks: string;
-  history: string[];
   delete_requested: boolean;
+};
+
+type CompanyHistory = {
+  id: string;
+  company_id: string;
+  author_name: string;
+  content: string;
+  created_at: string;
 };
 
 type AccountForm = {
@@ -112,7 +119,6 @@ function emptyCompany(): Company {
     next_action_date: "",
     next_action_text: "",
     remarks: "",
-    history: [],
     delete_requested: false,
   };
 }
@@ -221,30 +227,24 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-function SummaryCards({ companies }: { companies: Company[] }) {
+function MiniSummary({ companies }: { companies: Company[] }) {
   const overdueCount = companies.filter((c) => getActionState(c.next_action_date) === "overdue").length;
   const todayCount = companies.filter((c) => getActionState(c.next_action_date) === "today").length;
   const upcomingCount = companies.filter((c) => getActionState(c.next_action_date) === "upcoming").length;
 
   return (
-    <div className="grid three">
-      <div className="card">
-        <div className="card-body">
-          <div className="muted tiny">기한 지남</div>
-          <div className="big-number small">{overdueCount}</div>
-        </div>
+    <div className="mini-summary-wrap">
+      <div className="mini-summary-card">
+        <div className="muted tiny">기한지남</div>
+        <div className="mini-summary-number">{overdueCount}</div>
       </div>
-      <div className="card">
-        <div className="card-body">
-          <div className="muted tiny">오늘 액션</div>
-          <div className="big-number small">{todayCount}</div>
-        </div>
+      <div className="mini-summary-card">
+        <div className="muted tiny">오늘액션</div>
+        <div className="mini-summary-number">{todayCount}</div>
       </div>
-      <div className="card">
-        <div className="card-body">
-          <div className="muted tiny">예정 액션</div>
-          <div className="big-number small">{upcomingCount}</div>
-        </div>
+      <div className="mini-summary-card">
+        <div className="muted tiny">예정액션</div>
+        <div className="mini-summary-number">{upcomingCount}</div>
       </div>
     </div>
   );
@@ -256,6 +256,7 @@ export default function App() {
   const [loginPw, setLoginPw] = useState("");
   const [companies, setCompanies] = useState<Company[]>([]);
   const [profiles, setProfiles] = useState<Profile[]>([]);
+  const [companyHistories, setCompanyHistories] = useState<CompanyHistory[]>([]);
   const [selectedId, setSelectedId] = useState("");
   const [search, setSearch] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -286,7 +287,6 @@ export default function App() {
       open_date: row.open_date || "",
       next_action_date: row.next_action_date || "",
       fund_types: row.fund_types || [],
-      history: row.history || [],
     })) as Company[];
 
     setCompanies(rows);
@@ -304,6 +304,26 @@ export default function App() {
     }
 
     setProfiles((data || []) as Profile[]);
+  }
+
+  async function loadCompanyHistories(companyId?: string) {
+    let query = supabase
+      .from("company_histories")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (companyId) {
+      query = query.eq("company_id", companyId);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      alert("진행 내역 불러오기 실패");
+      return;
+    }
+
+    setCompanyHistories((data || []) as CompanyHistory[]);
   }
 
   useEffect(() => {
@@ -329,6 +349,14 @@ export default function App() {
       loadProfiles();
     }
   }, [user]);
+
+  useEffect(() => {
+    if (selectedId) {
+      loadCompanyHistories(selectedId);
+    } else {
+      setCompanyHistories([]);
+    }
+  }, [selectedId]);
 
   const myCompanies = useMemo(() => {
     const mine = companies.filter((c) => c.manager === user?.name);
@@ -432,6 +460,7 @@ export default function App() {
     setPage("mine");
     setCompanies([]);
     setProfiles([]);
+    setCompanyHistories([]);
   }
 
   function addFundType() {
@@ -473,7 +502,6 @@ export default function App() {
       next_action_date: form.next_action_date || null,
       next_action_text: form.next_action_text,
       remarks: form.remarks,
-      history: form.history,
       delete_requested: form.delete_requested,
     };
 
@@ -506,15 +534,13 @@ export default function App() {
   async function addHistory() {
     if (!selected || !historyText.trim()) return;
 
-    const nextHistory = [
-      `${new Date().toLocaleDateString("ko-KR")} ${user?.name}: ${historyText.trim()}`,
-      ...(selected.history || []),
-    ];
-
     const { error } = await supabase
-      .from("companies")
-      .update({ history: nextHistory })
-      .eq("id", selected.id);
+      .from("company_histories")
+      .insert({
+        company_id: selected.id,
+        author_name: user?.name || "",
+        content: historyText.trim(),
+      });
 
     if (error) {
       alert("진행 내역 저장 실패");
@@ -522,7 +548,7 @@ export default function App() {
     }
 
     setHistoryText("");
-    await loadCompanies();
+    await loadCompanyHistories(selected.id);
   }
 
   async function requestDelete(id: string) {
@@ -736,7 +762,7 @@ export default function App() {
             </div>
           </div>
 
-          <SummaryCards companies={dashboardCompanies} />
+          <MiniSummary companies={dashboardCompanies} />
 
           <div className="status-grid">
             {STATUSES.map((status) => (
@@ -875,9 +901,9 @@ export default function App() {
         </div>
       ) : (
         <div className="stack">
-          <SummaryCards companies={page === "mine" ? myCompanies : allCompanies} />
+          <MiniSummary companies={page === "mine" ? myCompanies : allCompanies} />
 
-          <div className="grid two">
+          <div className="grid two main-overview-grid">
             <div className="search-wrap">
               <Search size={16} />
               <input
@@ -888,16 +914,16 @@ export default function App() {
               />
             </div>
 
-            <div className="card">
-              <div className="card-body">
+            <div className="card compact-stat-card">
+              <div className="card-body compact-stat-body">
                 <div className="section-title">{page === "mine" ? "내 업체 수" : "전체 업체 수"}</div>
                 <div className="big-number">{page === "mine" ? myCompanies.length : allCompanies.length}</div>
-                <div className="muted tiny">상태 + 다음 액션 기준 자동 정렬 적용</div>
+                <div className="muted tiny">상태 + 다음 액션 기준 자동 정렬</div>
               </div>
             </div>
           </div>
 
-          <div className="grid main-side">
+          <div className="grid main-side wider-list-layout">
             <div className="card">
               <div className="card-header">
                 {page === "mine" ? `내 업체 리스트 (${filteredCompanies.length})` : `전체 업체 리스트 (${filteredCompanies.length})`}
@@ -966,16 +992,18 @@ export default function App() {
                       <div className="section-title">진행 내역</div>
                       <textarea
                         className="textarea"
-                        placeholder="예: 3/12 김수환 소장 상담 진행, 3/18 접수 완료"
+                        placeholder="예: 소진공 진행여부 체크 / 보완서류 요청 / 접수 완료"
                         value={historyText}
                         onChange={(e) => setHistoryText(e.target.value)}
                       />
                       <button className="btn primary" onClick={addHistory}>기록 추가</button>
                       <div className="stack-sm">
-                        {selected.history.length ? selected.history.map((h, i) => (
-                          <div key={i} className="timeline-item">
+                        {companyHistories.length ? companyHistories.map((item) => (
+                          <div key={item.id} className="timeline-item">
                             <div className="timeline-dot"></div>
-                            <div className="timeline-content">{h}</div>
+                            <div className="timeline-content">
+                              {new Date(item.created_at).toLocaleDateString("ko-KR")} {item.author_name}: {item.content}
+                            </div>
                           </div>
                         )) : <div className="muted tiny">히스토리 없음</div>}
                       </div>
