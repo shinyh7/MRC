@@ -32,6 +32,8 @@ const STATUS_CLASS_MAP: Record<(typeof STATUSES)[number], string> = {
   부결: "status-rejected",
   종결: "status-closed",
 };
+const STORAGE_USER_KEY = "mrc_logged_in_user";
+
 type Profile = {
   id: string;
   username: string;
@@ -67,6 +69,15 @@ type Company = {
   delete_requested: boolean;
 };
 
+type AccountForm = {
+  id: string;
+  username: string;
+  password: string;
+  name: string;
+  role: "admin" | "staff";
+  approved: boolean;
+};
+
 function emptyCompany(): Company {
   return {
     id: "",
@@ -92,6 +103,17 @@ function emptyCompany(): Company {
     remarks: "",
     history: [],
     delete_requested: false,
+  };
+}
+
+function emptyAccountForm(): AccountForm {
+  return {
+    id: "",
+    username: "",
+    password: "",
+    name: "",
+    role: "staff",
+    approved: true,
   };
 }
 
@@ -160,16 +182,19 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 
 export default function App() {
   const [user, setUser] = useState<Profile | null>(null);
-  const STORAGE_USER_KEY = "mrc_logged_in_user";
   const [loginId, setLoginId] = useState("");
   const [loginPw, setLoginPw] = useState("");
   const [companies, setCompanies] = useState<Company[]>([]);
+  const [profiles, setProfiles] = useState<Profile[]>([]);
   const [selectedId, setSelectedId] = useState("");
   const [search, setSearch] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [accountDialogOpen, setAccountDialogOpen] = useState(false);
   const [form, setForm] = useState<Company>(emptyCompany());
+  const [accountForm, setAccountForm] = useState<AccountForm>(emptyAccountForm());
   const [historyText, setHistoryText] = useState("");
   const [fundInput, setFundInput] = useState("");
+  const [accountSearch, setAccountSearch] = useState("");
   const [page, setPage] = useState<"mine" | "dashboard" | "accounts">("mine");
   const [dashboardManager, setDashboardManager] = useState<string>("all");
   const [loading, setLoading] = useState(true);
@@ -197,23 +222,45 @@ export default function App() {
     setCompanies(rows);
   }
 
+  async function loadProfiles() {
+    if (!user || user.role !== "admin") return;
+
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("*")
+      .order("name", { ascending: true });
+
+    if (error) {
+      alert("계정 데이터 불러오기 실패");
+      return;
+    }
+
+    setProfiles((data || []) as Profile[]);
+  }
+
   useEffect(() => {
-  const savedUser = localStorage.getItem(STORAGE_USER_KEY);
+    const savedUser = localStorage.getItem(STORAGE_USER_KEY);
 
-  if (!savedUser) {
-    setLoading(false);
-    return;
-  }
+    if (!savedUser) {
+      setLoading(false);
+      return;
+    }
 
-  try {
-    const parsedUser = JSON.parse(savedUser);
-    setUser(parsedUser);
-    loadCompanies().finally(() => setLoading(false));
-  } catch {
-    localStorage.removeItem(STORAGE_USER_KEY);
-    setLoading(false);
-  }
-}, []);
+    try {
+      const parsedUser = JSON.parse(savedUser) as Profile;
+      setUser(parsedUser);
+      loadCompanies().finally(() => setLoading(false));
+    } catch {
+      localStorage.removeItem(STORAGE_USER_KEY);
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (user?.role === "admin") {
+      loadProfiles();
+    }
+  }, [user]);
 
   const myCompanies = useMemo(() => companies.filter((c) => c.manager === user?.name), [companies, user]);
   const sharedCompanies = useMemo(() => companies, [companies]);
@@ -258,6 +305,13 @@ export default function App() {
       .sort((a, b) => a.next_action_date.localeCompare(b.next_action_date));
   }, [dashboardCompanies]);
 
+  const filteredProfiles = useMemo(() => {
+    return profiles.filter((p) => {
+      const text = `${p.username} ${p.name} ${p.role}`.toLowerCase();
+      return text.includes(accountSearch.toLowerCase());
+    });
+  }, [profiles, accountSearch]);
+
   async function login() {
     const { data, error } = await supabase
       .from("profiles")
@@ -289,6 +343,7 @@ export default function App() {
     setSelectedId("");
     setPage("mine");
     setCompanies([]);
+    setProfiles([]);
   }
 
   function addFundType() {
@@ -411,6 +466,78 @@ export default function App() {
     await loadCompanies();
   }
 
+  async function saveAccount() {
+    if (!accountForm.username.trim() || !accountForm.password.trim() || !accountForm.name.trim()) {
+      alert("이름 / 아이디 / 비밀번호를 입력해주세요.");
+      return;
+    }
+
+    const payload = {
+      username: accountForm.username.trim(),
+      password: accountForm.password.trim(),
+      name: accountForm.name.trim(),
+      role: accountForm.role,
+      approved: accountForm.approved,
+    };
+
+    if (accountForm.id) {
+      const { error } = await supabase.from("profiles").update(payload).eq("id", accountForm.id);
+      if (error) {
+        alert("계정 수정 실패");
+        return;
+      }
+    } else {
+      const { error } = await supabase.from("profiles").insert(payload);
+      if (error) {
+        alert("계정 등록 실패");
+        return;
+      }
+    }
+
+    setAccountDialogOpen(false);
+    setAccountForm(emptyAccountForm());
+    await loadProfiles();
+  }
+
+  function startEditAccount(profile: Profile) {
+    setAccountForm({
+      id: profile.id,
+      username: profile.username,
+      password: profile.password,
+      name: profile.name,
+      role: profile.role,
+      approved: profile.approved,
+    });
+    setAccountDialogOpen(true);
+  }
+
+  async function toggleApproved(profile: Profile) {
+    const { error } = await supabase
+      .from("profiles")
+      .update({ approved: !profile.approved })
+      .eq("id", profile.id);
+
+    if (error) {
+      alert("승인 상태 변경 실패");
+      return;
+    }
+
+    await loadProfiles();
+  }
+
+  async function deleteAccount(id: string) {
+    const ok = window.confirm("해당 계정을 삭제할까요?");
+    if (!ok) return;
+
+    const { error } = await supabase.from("profiles").delete().eq("id", id);
+    if (error) {
+      alert("계정 삭제 실패");
+      return;
+    }
+
+    await loadProfiles();
+  }
+
   if (loading) {
     return <div className="auth-page"><div className="muted">로딩중...</div></div>;
   }
@@ -474,9 +601,9 @@ export default function App() {
           </button>
           {user.role === "admin" && (
             <button className={`btn ${page === "accounts" ? "primary" : "ghost"}`} onClick={() => setPage("accounts")}>
-  계정관리
-</button>
-)}      
+              계정관리
+            </button>
+          )}
         </div>
         <div className="legend">
           <span><Dot state="overdue" /> 기한 지남</span>
@@ -557,6 +684,69 @@ export default function App() {
                     </div>
                   )) : <div className="muted">데이터 없음</div>}
                 </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : page === "accounts" ? (
+        <div className="stack">
+          <div className="grid two">
+            <div className="search-wrap">
+              <Search size={16} />
+              <input
+                className="input search-input"
+                placeholder="이름 / 아이디 / 권한 검색"
+                value={accountSearch}
+                onChange={(e) => setAccountSearch(e.target.value)}
+              />
+            </div>
+
+            <div className="row end">
+              <button
+                className="btn primary"
+                onClick={() => {
+                  setAccountForm(emptyAccountForm());
+                  setAccountDialogOpen(true);
+                }}
+              >
+                <Plus size={16} />
+                계정 등록
+              </button>
+            </div>
+          </div>
+
+          <div className="card">
+            <div className="card-header">계정 리스트 ({filteredProfiles.length})</div>
+            <div className="card-body scroll">
+              <div className="stack-sm">
+                {filteredProfiles.length ? filteredProfiles.map((profile) => (
+                  <div key={profile.id} className="account-card">
+                    <div className="row-between">
+                      <div>
+                        <div className="strong">{profile.name}</div>
+                        <div className="muted tiny">@{profile.username}</div>
+                      </div>
+                      <div className="row">
+                        <span className={`status-badge ${profile.role === "admin" ? "status-consult" : "status-closed"}`}>
+                          {profile.role}
+                        </span>
+                        <span className={`status-badge ${profile.approved ? "status-approved" : "status-docs"}`}>
+                          {profile.approved ? "승인" : "대기"}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="row wrap">
+                      <button className="btn ghost sm" onClick={() => startEditAccount(profile)}>수정</button>
+                      <button className="btn ghost sm" onClick={() => toggleApproved(profile)}>
+                        {profile.approved ? "승인 해제" : "승인 처리"}
+                      </button>
+                      {profile.username !== "shinyh7" ? (
+                        <button className="btn danger sm" onClick={() => deleteAccount(profile.id)}>삭제</button>
+                      ) : null}
+                    </div>
+                  </div>
+                )) : <div className="muted">계정 데이터 없음</div>}
               </div>
             </div>
           </div>
@@ -658,7 +848,7 @@ export default function App() {
                       <div className="stack-sm">
                         {selected.history.length ? selected.history.map((h, i) => (
                           <div key={i} className="timeline-item">
-                            <div className="timeline-dot"></div> 
+                            <div className="timeline-dot"></div>
                             <div className="timeline-content">{h}</div>
                           </div>
                         )) : <div className="muted tiny">히스토리 없음</div>}
@@ -766,6 +956,35 @@ export default function App() {
         <div className="row end">
           <button className="btn primary" onClick={saveCompany}>{form.id ? "수정 저장" : "저장"}</button>
           <button className="btn ghost" onClick={() => { setDialogOpen(false); setForm(emptyCompany()); setFundInput(""); }}>취소</button>
+        </div>
+      </Modal>
+
+      <Modal open={accountDialogOpen} onClose={() => { setAccountDialogOpen(false); setAccountForm(emptyAccountForm()); }}>
+        <div className="modal-header">{accountForm.id ? "계정 수정" : "계정 등록"}</div>
+
+        <div className="form-grid">
+          <Field label="이름"><input className="input" value={accountForm.name} onChange={(e) => setAccountForm({ ...accountForm, name: e.target.value })} /></Field>
+          <Field label="아이디"><input className="input" value={accountForm.username} onChange={(e) => setAccountForm({ ...accountForm, username: e.target.value })} /></Field>
+          <Field label="비밀번호"><input className="input" value={accountForm.password} onChange={(e) => setAccountForm({ ...accountForm, password: e.target.value })} /></Field>
+
+          <Field label="권한">
+            <select className="input select" value={accountForm.role} onChange={(e) => setAccountForm({ ...accountForm, role: e.target.value as "admin" | "staff" })}>
+              <option value="staff">staff</option>
+              <option value="admin">admin</option>
+            </select>
+          </Field>
+
+          <Field label="승인 여부">
+            <select className="input select" value={accountForm.approved ? "approved" : "pending"} onChange={(e) => setAccountForm({ ...accountForm, approved: e.target.value === "approved" })}>
+              <option value="approved">승인</option>
+              <option value="pending">대기</option>
+            </select>
+          </Field>
+        </div>
+
+        <div className="row end">
+          <button className="btn primary" onClick={saveAccount}>{accountForm.id ? "수정 저장" : "계정 저장"}</button>
+          <button className="btn ghost" onClick={() => { setAccountDialogOpen(false); setAccountForm(emptyAccountForm()); }}>취소</button>
         </div>
       </Modal>
     </div>
