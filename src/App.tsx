@@ -766,24 +766,3 @@ export default function App() {
     </div>
   );
 }
-.timeline-item {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  margin-bottom: 8px;
-}
-
-.timeline-dot {
-  width: 8px;
-  height: 8px;
-  background: #2563eb;
-  border-radius: 50%;
-  margin-top: 6px;
-}
-
-.timeline-content {
-  background: #f1f5f9;
-  padding: 6px 10px;
-  border-radius: 6px;
-  font-size: 13px;
-}
