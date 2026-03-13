@@ -23,7 +23,15 @@ const TEAM_MEMBERS = [
 const STATUSES = ["상담", "서류준비", "접수완료", "심사진행", "승인", "부결", "종결"] as const;
 const CONTRACT_STATUSES = ["미계약", "전자계약 완료", "서면계약 완료", "보류"] as const;
 const INFLOW_SOURCES = ["메타광고", "블로그", "전화영업", "소개", "문자", "홈페이지", "지인추천", "기존고객", "기타"] as const;
-
+const STATUS_CLASS_MAP: Record<(typeof STATUSES)[number], string> = {
+  상담: "status-consult",
+  서류준비: "status-docs",
+  접수완료: "status-submitted",
+  심사진행: "status-review",
+  승인: "status-approved",
+  부결: "status-rejected",
+  종결: "status-closed",
+};
 type Profile = {
   id: string;
   username: string;
