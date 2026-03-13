@@ -581,3 +581,38 @@ select {
   background: #e2e8f0;
   color: #475569;
 }
+.timeline-item {
+  position: relative;
+  display: flex;
+  gap: 10px;
+  padding-left: 16px;
+  margin-bottom: 10px;
+}
+
+.timeline-item::before {
+  content: "";
+  position: absolute;
+  left: 3px;
+  top: 0;
+  bottom: -10px;
+  width: 2px;
+  background: #e2e8f0;
+}
+
+.timeline-dot {
+  width: 8px;
+  height: 8px;
+  background: #2563eb;
+  border-radius: 50%;
+  margin-top: 6px;
+  position: relative;
+  z-index: 2;
+}
+
+.timeline-content {
+  background: #f8fafc;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 13px;
+  border: 1px solid #e2e8f0;
+}
