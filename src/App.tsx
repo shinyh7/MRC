@@ -234,15 +234,15 @@ function MiniSummary({ companies }: { companies: Company[] }) {
 
   return (
     <div className="mini-summary-wrap">
-      <div className="mini-summary-card">
+      <div className="mini-summary-card mini-summary-overdue">
         <div className="muted tiny">기한지남</div>
         <div className="mini-summary-number">{overdueCount}</div>
       </div>
-      <div className="mini-summary-card">
+      <div className="mini-summary-card mini-summary-today">
         <div className="muted tiny">오늘액션</div>
         <div className="mini-summary-number">{todayCount}</div>
       </div>
-      <div className="mini-summary-card">
+      <div className="mini-summary-card mini-summary-upcoming">
         <div className="muted tiny">예정액션</div>
         <div className="mini-summary-number">{upcomingCount}</div>
       </div>
@@ -481,6 +481,10 @@ export default function App() {
   async function saveCompany() {
     if (!form.company_name.trim()) return;
 
+    const isEdit = Boolean(form.id);
+    const beforeCompany = companies.find((c) => c.id === form.id) || null;
+    const previousManager = beforeCompany?.manager || "";
+
     const payload = {
       company_name: form.company_name,
       business_type: form.business_type,
@@ -505,6 +509,8 @@ export default function App() {
       delete_requested: form.delete_requested,
     };
 
+    let targetCompanyId = form.id;
+
     if (form.id) {
       const { error } = await supabase.from("companies").update(payload).eq("id", form.id);
       if (error) {
@@ -512,11 +518,29 @@ export default function App() {
         return;
       }
     } else {
-      const { error } = await supabase.from("companies").insert(payload);
-      if (error) {
+      const { data, error } = await supabase
+        .from("companies")
+        .insert(payload)
+        .select("id")
+        .single();
+
+      if (error || !data) {
         alert("업체 등록 실패");
         return;
       }
+
+      targetCompanyId = data.id;
+    }
+
+    if (targetCompanyId && previousManager !== form.manager) {
+      const oldManagerText = previousManager || "미지정";
+      const newManagerText = form.manager || "미지정";
+
+      await supabase.from("company_histories").insert({
+        company_id: targetCompanyId,
+        author_name: user?.name || "",
+        content: `담당자 변경: ${oldManagerText} → ${newManagerText}`,
+      });
     }
 
     setForm(emptyCompany());
@@ -549,6 +573,53 @@ export default function App() {
 
     setHistoryText("");
     await loadCompanyHistories(selected.id);
+  }
+
+  async function deleteHistory(historyId: string) {
+    const ok = window.confirm("이 진행 내역을 삭제할까요?");
+    if (!ok) return;
+
+    const { error } = await supabase
+      .from("company_histories")
+      .delete()
+      .eq("id", historyId);
+
+    if (error) {
+      alert("진행 내역 삭제 실패");
+      return;
+    }
+
+    if (selectedId) {
+      await loadCompanyHistories(selectedId);
+    }
+  }
+
+  async function quickChangeStatus(companyId: string, nextStatus: Company["status"]) {
+    const company = companies.find((c) => c.id === companyId);
+    if (!company) return;
+    if (company.status === nextStatus) return;
+
+    const { error } = await supabase
+      .from("companies")
+      .update({ status: nextStatus })
+      .eq("id", companyId);
+
+    if (error) {
+      alert("상태 변경 실패");
+      return;
+    }
+
+    await supabase.from("company_histories").insert({
+      company_id: companyId,
+      author_name: user?.name || "",
+      content: `상태 변경: ${company.status} → ${nextStatus}`,
+    });
+
+    await loadCompanies();
+
+    if (selectedId === companyId) {
+      await loadCompanyHistories(companyId);
+    }
   }
 
   async function requestDelete(id: string) {
@@ -785,7 +856,7 @@ export default function App() {
                       <div className="strong">
                         {c.company_name}{c.ceo_name ? ` (${c.ceo_name})` : ""}
                       </div>
-                      <div className="muted tiny row">
+                      <div className={`action-pill ${getActionState(c.next_action_date)}`}>
                         <Dot state={getActionState(c.next_action_date)} />
                         <span>{c.next_action_date}</span>
                       </div>
@@ -935,16 +1006,26 @@ export default function App() {
                     className={`list-card clickable ${selectedId === c.id ? "active" : ""}`}
                     onClick={() => setSelectedId(c.id)}
                   >
-                    <div className="row-between">
+                    <div className="row-between list-top-row">
                       <div className="strong">
                         {c.company_name}{c.ceo_name ? ` (${c.ceo_name})` : ""}
                       </div>
-                      <span className={`status-badge ${STATUS_CLASS_MAP[c.status]}`}>{c.status}</span>
+                      <div className="row list-top-actions" onClick={(e) => e.stopPropagation()}>
+                        <select
+                          className={`quick-status-select ${STATUS_CLASS_MAP[c.status]}`}
+                          value={c.status}
+                          onChange={(e) => quickChangeStatus(c.id, e.target.value as Company["status"])}
+                        >
+                          {STATUSES.map((s) => (
+                            <option key={s} value={s}>{s}</option>
+                          ))}
+                        </select>
+                      </div>
                     </div>
                     <div className="muted">{c.industry || "업종 미입력"} · 유입: {c.inflow_source || "-"}</div>
                     <div>{(c.fund_types || []).join(" + ") || "자금 미입력"} · N {c.nice_score || "-"} / K {c.kcb_score || "-"}</div>
                     <div className="muted">담당자: {c.manager || "-"}</div>
-                    <div className="muted tiny row">
+                    <div className={`action-pill ${getActionState(c.next_action_date)}`}>
                       <Dot state={getActionState(c.next_action_date)} />
                       <span>다음 액션: {c.next_action_date || "미정"}{c.next_action_text ? ` · ${c.next_action_text}` : ""}</span>
                     </div>
@@ -1001,8 +1082,17 @@ export default function App() {
                         {companyHistories.length ? companyHistories.map((item) => (
                           <div key={item.id} className="timeline-item">
                             <div className="timeline-dot"></div>
-                            <div className="timeline-content">
-                              {new Date(item.created_at).toLocaleDateString("ko-KR")} {item.author_name}: {item.content}
+                            <div className="timeline-content timeline-content-row">
+                              <div className="timeline-text-block">
+                                {new Date(item.created_at).toLocaleDateString("ko-KR")} {item.author_name}: {item.content}
+                              </div>
+                              <button
+                                type="button"
+                                className="timeline-delete-btn"
+                                onClick={() => deleteHistory(item.id)}
+                              >
+                                삭제
+                              </button>
                             </div>
                           </div>
                         )) : <div className="muted tiny">히스토리 없음</div>}
