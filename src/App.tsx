@@ -472,6 +472,11 @@ export default function App() {
           <button className={`btn ${page === "dashboard" ? "primary" : "ghost"}`} onClick={() => setPage("dashboard")}>
             대시보드(전체현황)
           </button>
+          {user.role === "admin" && (
+            <button className={`btn ${page === "accounts" ? "primary" : "ghost"}`} onClick={() => setPage("accounts")}>
+  계정관리
+</button>
+)}      
         </div>
         <div className="legend">
           <span><Dot state="overdue" /> 기한 지남</span>
