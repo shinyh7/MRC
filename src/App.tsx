@@ -277,10 +277,12 @@ export default function App() {
     }
 
     setUser(data as Profile);
+    localStorage.setItem(STORAGE_USER_KEY, JSON.stringify(data));
     await loadCompanies();
   }
 
   function logout() {
+    localStorage.removeItem(STORAGE_USER_KEY);
     setUser(null);
     setLoginId("");
     setLoginPw("");
