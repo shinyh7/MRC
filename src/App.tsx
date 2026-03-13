@@ -652,8 +652,11 @@ export default function App() {
                       <button className="btn primary" onClick={addHistory}>기록 추가</button>
                       <div className="stack-sm">
                         {selected.history.length ? selected.history.map((h, i) => (
-                          <div key={i} className="history-item">{h}</div>
-                        )) : <div className="muted tiny">히스토리 없음</div>}
+  <div key={i} className="timeline-item">
+    <div className="timeline-dot"></div>
+    <div className="timeline-content">{h}</div>
+  </div>
+)) : <div className="muted tiny">히스토리 없음</div>}
                       </div>
                     </div>
 
@@ -762,4 +765,25 @@ export default function App() {
       </Modal>
     </div>
   );
+}
+.timeline-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.timeline-dot {
+  width: 8px;
+  height: 8px;
+  background: #2563eb;
+  border-radius: 50%;
+  margin-top: 6px;
+}
+
+.timeline-content {
+  background: #f1f5f9;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 13px;
 }
