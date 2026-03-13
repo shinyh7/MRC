@@ -547,3 +547,37 @@ select {
   background: #e2e8f0;
   color: #475569;
 }
+.status-badge.status-consult {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.status-badge.status-docs {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+.status-badge.status-submitted {
+  background: #ede9fe;
+  color: #6d28d9;
+}
+
+.status-badge.status-review {
+  background: #e0e7ff;
+  color: #4338ca;
+}
+
+.status-badge.status-approved {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.status-badge.status-rejected {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.status-badge.status-closed {
+  background: #e2e8f0;
+  color: #475569;
+}
