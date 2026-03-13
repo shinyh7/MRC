@@ -575,7 +575,7 @@ export default function App() {
                       <div className="strong">
                         {c.company_name}{c.ceo_name ? ` (${c.ceo_name})` : ""}
                       </div>
-                      <span className="status-badge">{c.status}</span>
+                      <span className={`status-badge ${STATUS_CLASS_MAP[c.status]}`}>{c.status}</span>
                     </div>
                     <div className="muted">{c.industry || "업종 미입력"} · 유입: {c.inflow_source || "-"}</div>
                     <div>{(c.fund_types || []).join(" + ") || "자금 미입력"} · N {c.nice_score || "-"} / K {c.kcb_score || "-"}</div>
